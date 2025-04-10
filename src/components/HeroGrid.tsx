@@ -23,9 +23,12 @@ export default function HeroGrid() {
     };
 
     const renderHeroSlot = (hero: Hero | null, index: number, isAllyTeam: boolean) => {
+        const roles = ['Soft Support', 'Hard Support', 'Offlane', 'Midlane', 'Safelane'];
+        const role = roles[index];
+
         return (
             <div
-                key={`${isAllyTeam ? 'radiant' : 'dire'}-${index}`}
+                key={`${isAllyTeam ? 'ally' : 'enemy'}-${index}`}
                 className="relative group cursor-pointer"
                 onClick={() => {
                     setSelectedIndex(index);
@@ -55,6 +58,13 @@ export default function HeroGrid() {
                             {/* Dark gradient overlays */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/50"></div>
 
+                            {/* Role label */}
+                            <div className="absolute top-2 left-2">
+                                <span className="text-xs text-gray-300 font-semibold bg-black/60 px-2 py-1 rounded">
+                                    {role}
+                                </span>
+                            </div>
+
                             {/* Hero name */}
                             <div className="absolute top-2 left-0 right-0 text-center">
                                 <span className="text-sm text-gray-200 font-semibold uppercase tracking-wider">
@@ -73,8 +83,9 @@ export default function HeroGrid() {
                             </div>
                         </>
                     ) : (
-                        <div className="flex items-center justify-center h-full">
+                        <div className="flex flex-col items-center justify-center h-full">
                             <span className="text-gray-500 text-sm">Empty</span>
+                            <span className="text-gray-600 text-xs mt-1">{role}</span>
                         </div>
                     )}
                 </div>
@@ -87,7 +98,7 @@ export default function HeroGrid() {
             <div className="w-full max-w-[1200px] flex flex-col gap-4">
                 {/* Dire Team (Enemy) */}
                 <div className="flex flex-col gap-2">
-                    <h2 className="text-red-500 font-bold text-xl tracking-wider px-2">THE DIRE</h2>
+                    <h2 className="text-red-500 font-bold text-xl tracking-wider px-2">ENEMY TEAM</h2>
                     <div className="bg-[#1c1c1c]/80 p-4 rounded">
                         <div className="flex gap-4 justify-center">
                             {enemyHeroes.map((hero, index) => renderHeroSlot(hero, index, false))}
@@ -95,19 +106,9 @@ export default function HeroGrid() {
                     </div>
                 </div>
 
-                {/* Timer and Game Mode */}
-                <div className="flex flex-col items-center gap-2">
-                    <div className="bg-[#1c1c1c] px-6 py-2 rounded-lg border border-[#916c36]/30">
-                        <span className="text-2xl font-bold text-gray-300">0:00</span>
-                    </div>
-                    <div className="bg-[#1c1c1c] px-4 py-1 rounded border border-[#916c36]/30">
-                        <span className="text-gray-400 text-sm">ALL PICK</span>
-                    </div>
-                </div>
-
                 {/* Radiant Team (Ally) */}
                 <div className="flex flex-col gap-2">
-                    <h2 className="text-green-500 font-bold text-xl tracking-wider px-2">THE RADIANT</h2>
+                    <h2 className="text-green-500 font-bold text-xl tracking-wider px-2">ALLY TEAM</h2>
                     <div className="bg-[#1c1c1c]/80 p-4 rounded">
                         <div className="flex gap-4 justify-center">
                             {allyHeroes.map((hero, index) => renderHeroSlot(hero, index, true))}

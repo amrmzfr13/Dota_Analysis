@@ -76,7 +76,7 @@ export function getHeroImageUrl(heroName: string | undefined): string {
     return '/images/hero-placeholder.png';
   }
   const cleanName = heroName.replace('npc_dota_hero_', '');
-  return `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/${cleanName}_vert.jpg`;
+  return `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/${cleanName}.png`;
 }
 
 export function calculateWinRate(matchup: Matchup): number {

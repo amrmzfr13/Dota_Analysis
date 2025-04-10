@@ -8,6 +8,7 @@ const nextConfig = {
                 pathname: '/apps/dota2/images/**',
             },
         ],
+        domains: ['cdn.cloudflare.steamstatic.com'],
     },
 };
 
