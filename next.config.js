@@ -7,8 +7,12 @@ const nextConfig = {
                 hostname: 'cdn.cloudflare.steamstatic.com',
                 pathname: '/apps/dota2/images/**',
             },
-        ],
-        domains: ['cdn.cloudflare.steamstatic.com'],
+            {
+                protocol: 'https',
+                hostname: 'api.opendota.com',
+                pathname: '/apps/dota2/images/**',
+            }
+        ]
     },
 };
 

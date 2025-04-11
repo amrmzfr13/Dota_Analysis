@@ -1,147 +1,72 @@
 "use client";
 
-import { useState } from 'react';
-import { useHeroContext } from '@/context/HeroContext';
-import { Hero, getHeroMatchupDetails, calculateWinRate, getHeroImageUrl, API_BASE_URL } from '@/services/dotaApi';
+import React from 'react';
 import Image from 'next/image';
+import { getHeroImageUrl, heroIdToName } from '../services/dotaApi';
 
-export default function CountersSection() {
-    const { enemyHeroes } = useHeroContext();
-    const [counters, setCounters] = useState<{ hero: Hero; winRate: number }[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+interface Counter {
+    hero_id: number;
+    games_played: number;
+    wins: number;
+}
 
-    const analyzeCounters = async () => {
-        if (enemyHeroes.length === 0) {
-            setError('Please select at least one enemy hero');
-            return;
-        }
+interface CountersSectionProps {
+    counters: Counter[];
+}
 
-        setIsLoading(true);
-        setError(null);
+const CountersSection: React.FC<CountersSectionProps> = ({ counters }) => {
+    if (!counters || counters.length === 0) return null;
 
-        try {
-            const validEnemyHeroes = enemyHeroes.filter((hero): hero is Hero => hero !== null && hero.id !== undefined);
-
-            if (validEnemyHeroes.length === 0) {
-                setError('Please select valid enemy heroes');
-                return;
-            }
-
-            // First, get all heroes to use for counter data
-            const heroesResponse = await fetch(`${API_BASE_URL}/heroes`);
-            if (!heroesResponse.ok) {
-                throw new Error('Failed to fetch heroes list');
-            }
-            const allHeroes = await heroesResponse.json();
-
-            const allMatchups = await Promise.all(
-                validEnemyHeroes.map(hero => getHeroMatchupDetails(hero.id))
-            );
-
-            // Find heroes that have high win rates against the enemy heroes
-            const counterMap = new Map<number, { hero: Hero; totalWinRate: number; count: number }>();
-
-            allMatchups.forEach(matchupData => {
-                if (!matchupData?.matchups) return;
-
-                matchupData.matchups.forEach(matchup => {
-                    if (matchup.games_played < 100) return; // Only consider matchups with enough games
-
-                    const winRate = calculateWinRate(matchup);
-                    if (winRate > 55) { // Only consider strong counters
-                        const existing = counterMap.get(matchup.hero_id);
-                        if (existing) {
-                            existing.totalWinRate += winRate;
-                            existing.count += 1;
-                        } else {
-                            // Find the counter hero in our allHeroes list
-                            const counterHero = allHeroes.find((h: Hero) => h.id === matchup.hero_id);
-                            if (counterHero) {
-                                counterMap.set(matchup.hero_id, {
-                                    hero: counterHero,
-                                    totalWinRate: winRate,
-                                    count: 1
-                                });
-                            }
-                        }
-                    }
-                });
-            });
-
-            // Convert to array and sort by average win rate
-            const sortedCounters = Array.from(counterMap.values())
-                .map(({ hero, totalWinRate, count }) => ({
-                    hero,
-                    winRate: totalWinRate / count
-                }))
-                .sort((a, b) => b.winRate - a.winRate)
-                .slice(0, 5); // Show top 5 counters
-
-            setCounters(sortedCounters);
-        } catch (error) {
-            console.error('Error fetching counters:', error);
-            setError('Failed to fetch counter data. Please try again later.');
-            setCounters([]);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    // Sort counters by win rate in descending order
+    const sortedCounters = [...counters].sort((a, b) => {
+        const winRateA = (a.wins / a.games_played) * 100;
+        const winRateB = (b.wins / b.games_played) * 100;
+        return winRateB - winRateA;
+    });
 
     return (
-        <section className="md:col-span-3 bg-gray-800 p-5 rounded-xl shadow-md">
-            <h2 className="text-lg font-semibold mb-4 border-b border-gray-600 pb-2">✅ Recommended Counters</h2>
+        <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-200">Heroes that counter this hero</h3>
+            <div className="grid grid-cols-1 gap-4 max-h-[500px] overflow-y-auto pr-2">
+                {sortedCounters.map((counter) => {
+                    const heroName = heroIdToName[counter.hero_id];
+                    if (!heroName) return null;
 
-            {!isLoading && !error && counters.length === 0 && (
-                <div className="flex flex-col items-center gap-4">
-                    <p className="text-gray-400 text-center">Select enemy heroes and click analyze to see recommended counters</p>
-                    <button
-                        onClick={analyzeCounters}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                        disabled={enemyHeroes.length === 0}
-                    >
-                        Analyze Counters
-                    </button>
-                </div>
-            )}
+                    const winRate = (counter.wins / counter.games_played) * 100;
+                    // Convert the display name to the internal name format
+                    const internalName = `npc_dota_hero_${heroName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
 
-            {isLoading && (
-                <div className="text-center text-gray-400">Analyzing matchups...</div>
-            )}
-
-            {error && (
-                <div className="text-center text-gray-400">{error}</div>
-            )}
-
-            {counters.length > 0 && (
-                <>
-                    <button
-                        onClick={analyzeCounters}
-                        className="mb-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                    >
-                        Refresh Analysis
-                    </button>
-                    <ul className="space-y-3">
-                        {counters.map(({ hero, winRate }) => (
-                            <li key={`counter-${hero.id}-${winRate}`} className="flex items-center gap-3">
+                    return (
+                        <div key={counter.hero_id} className="flex items-center space-x-4 bg-[#2C333D]/30 p-4 rounded">
+                            <div className="relative w-12 h-12">
                                 <Image
-                                    src={getHeroImageUrl(hero.name)}
-                                    alt={hero.localized_name}
-                                    width={32}
-                                    height={32}
-                                    className="rounded"
+                                    src={getHeroImageUrl(internalName)}
+                                    alt={heroName}
+                                    fill
+                                    className="object-cover rounded"
                                 />
-                                <div>
-                                    <span className="font-semibold">{hero.localized_name}</span>
-                                    <span className="text-sm text-gray-400 ml-2">
-                                        ({winRate.toFixed(1)}% win rate against enemy team)
-                                    </span>
+                            </div>
+                            <div className="flex-1">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-gray-200 font-medium">{heroName}</span>
+                                    <span className="text-green-400 font-semibold">{winRate.toFixed(1)}%</span>
                                 </div>
-                            </li>
-                        ))}
-                    </ul>
-                </>
-            )}
-        </section>
+                                <div className="w-full bg-gray-700 rounded-full h-2">
+                                    <div
+                                        className="bg-green-500 h-2 rounded-full"
+                                        style={{ width: `${winRate}%` }}
+                                    />
+                                </div>
+                                <p className="text-sm text-gray-400 mt-1">
+                                    {counter.wins}/{counter.games_played} games
+                                </p>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
     );
-} 
+};
+
+export default CountersSection; 

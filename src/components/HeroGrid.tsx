@@ -1,128 +1,165 @@
 "use client";
 
-import { useState } from 'react';
-import { useHeroContext } from '@/context/HeroContext';
-import { getHeroImageUrl, Hero } from '@/services/dotaApi';
+import React, { useState, useEffect } from 'react';
+import { getAllHeroes, getHeroMatchups, getHeroImageUrl, Hero } from '../services/dotaApi';
+import CountersSection from './CountersSection';
 import Image from 'next/image';
-import HeroSelection from './HeroSelection';
 
-export default function HeroGrid() {
-    const { allyHeroes, enemyHeroes, setAllyHero, setEnemyHero } = useHeroContext();
+interface Counter {
+    hero_id: number;
+    games_played: number;
+    wins: number;
+}
+
+const HeroGrid: React.FC = () => {
+    const [heroes, setHeroes] = useState<Hero[]>([]);
+    const [enemyHeroes, setEnemyHeroes] = useState<(Hero | null)[]>(Array(5).fill(null));
+    const [counters, setCounters] = useState<Record<number, Counter[]>>({});
+    const [loading, setLoading] = useState(true);
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-    const [isAlly, setIsAlly] = useState<boolean>(true);
+
+    useEffect(() => {
+        const fetchHeroes = async () => {
+            try {
+                const data = await getAllHeroes();
+                setHeroes(data);
+                setLoading(false);
+            } catch (err) {
+                console.error('Failed to fetch heroes:', err);
+                setLoading(false);
+            }
+        };
+
+        fetchHeroes();
+    }, []);
 
     const handleHeroSelect = (hero: Hero) => {
         if (selectedIndex !== null) {
-            if (isAlly) {
-                setAllyHero(selectedIndex, hero);
-            } else {
-                setEnemyHero(selectedIndex, hero);
-            }
+            const newEnemyHeroes = [...enemyHeroes];
+            newEnemyHeroes[selectedIndex] = hero;
+            setEnemyHeroes(newEnemyHeroes);
+            setSelectedIndex(null);
         }
-        setSelectedIndex(null);
     };
 
-    const renderHeroSlot = (hero: Hero | null, index: number, isAllyTeam: boolean) => {
-        const roles = ['Soft Support', 'Hard Support', 'Offlane', 'Midlane', 'Safelane'];
-        const role = roles[index];
-
-        return (
-            <div
-                key={`${isAllyTeam ? 'ally' : 'enemy'}-${index}`}
-                className="relative group cursor-pointer"
-                onClick={() => {
-                    setSelectedIndex(index);
-                    setIsAlly(isAllyTeam);
-                }}
-            >
-                <div className={`w-[200px] h-[280px] relative
-                    ${hero ? 'bg-[#1c1c1c]' : 'bg-gray-900'} 
-                    border-2 border-[#916c36] rounded-sm
-                    shadow-[inset_0_0_10px_rgba(0,0,0,0.6)]
-                    overflow-hidden`}
-                >
-                    {hero ? (
-                        <>
-                            {/* Hero Image */}
-                            <div className="absolute inset-0">
-                                <Image
-                                    src={getHeroImageUrl(hero.name)}
-                                    alt={hero.localized_name}
-                                    width={200}
-                                    height={280}
-                                    className="object-cover w-full h-full"
-                                    priority
-                                />
-                            </div>
-
-                            {/* Dark gradient overlays */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/50"></div>
-
-                            {/* Role label */}
-                            <div className="absolute top-2 left-2">
-                                <span className="text-xs text-gray-300 font-semibold bg-black/60 px-2 py-1 rounded">
-                                    {role}
-                                </span>
-                            </div>
-
-                            {/* Hero name */}
-                            <div className="absolute top-2 left-0 right-0 text-center">
-                                <span className="text-sm text-gray-200 font-semibold uppercase tracking-wider">
-                                    {hero.localized_name}
-                                </span>
-                            </div>
-
-                            {/* Ability icons */}
-                            <div className="absolute bottom-2 left-2 right-2 flex justify-center gap-1">
-                                {[...Array(4)].map((_, i) => (
-                                    <div
-                                        key={i}
-                                        className="w-10 h-10 bg-black/60 rounded-sm border border-[#916c36]/30"
-                                    ></div>
-                                ))}
-                            </div>
-                        </>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full">
-                            <span className="text-gray-500 text-sm">Empty</span>
-                            <span className="text-gray-600 text-xs mt-1">{role}</span>
-                        </div>
-                    )}
-                </div>
-            </div>
-        );
+    const handleSlotClick = (index: number) => {
+        setSelectedIndex(index);
     };
+
+    const updateCounters = async () => {
+        const selectedEnemyHeroes = enemyHeroes.filter((hero): hero is Hero => hero !== null);
+
+        try {
+            const countersPromises = selectedEnemyHeroes.map(hero => getHeroMatchups(hero.id));
+            const countersData = await Promise.all(countersPromises);
+
+            const newCounters: Record<number, Counter[]> = {};
+            selectedEnemyHeroes.forEach((hero, index) => {
+                newCounters[hero.id] = countersData[index];
+            });
+
+            setCounters(newCounters);
+        } catch (err) {
+            console.error('Failed to fetch counter data:', err);
+        }
+    };
+
+    useEffect(() => {
+        updateCounters();
+    }, [enemyHeroes]);
+
+    if (loading) return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
 
     return (
-        <div className="w-full flex flex-col items-center gap-4">
-            <div className="w-full max-w-[1200px] flex flex-col gap-4">
-                {/* Dire Team (Enemy) */}
-                <div className="flex flex-col gap-2">
-                    <h2 className="text-red-500 font-bold text-xl tracking-wider px-2">ENEMY TEAM</h2>
-                    <div className="bg-[#1c1c1c]/80 p-4 rounded">
-                        <div className="flex gap-4 justify-center">
-                            {enemyHeroes.map((hero, index) => renderHeroSlot(hero, index, false))}
-                        </div>
+        <div className="min-h-screen bg-[#0D1117] p-6">
+            <div className="max-w-7xl mx-auto space-y-8">
+                {/* Enemy Team */}
+                <div className="space-y-4">
+                    <h2 className="text-red-500 font-bold text-xl tracking-wider px-2 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">ENEMY TEAM</h2>
+                    <div className="grid grid-cols-5 gap-4">
+                        {enemyHeroes.map((hero, index) => (
+                            <div
+                                key={`enemy-${index}`}
+                                className="relative group cursor-pointer"
+                                onClick={() => handleSlotClick(index)}
+                            >
+                                {hero ? (
+                                    <div className="w-full aspect-square relative">
+                                        <Image
+                                            src={getHeroImageUrl(hero.name)}
+                                            alt={hero.localized_name}
+                                            fill
+                                            className="object-cover rounded"
+                                        />
+                                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 p-2">
+                                            <p className="text-white text-sm">{hero.localized_name}</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="w-full aspect-square bg-[#2C333D]/30 rounded flex items-center justify-center">
+                                        <p className="text-gray-400">Select Hero</p>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
                     </div>
                 </div>
 
-                {/* Radiant Team (Ally) */}
-                <div className="flex flex-col gap-2">
-                    <h2 className="text-green-500 font-bold text-xl tracking-wider px-2">ALLY TEAM</h2>
-                    <div className="bg-[#1c1c1c]/80 p-4 rounded">
-                        <div className="flex gap-4 justify-center">
-                            {allyHeroes.map((hero, index) => renderHeroSlot(hero, index, true))}
+                {/* Hero Selection Modal */}
+                {selectedIndex !== null && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
+                        <div className="bg-[#1A1F2C] p-6 rounded-lg max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+                            <h2 className="text-xl font-bold text-gray-200 mb-4">Select an Enemy Hero</h2>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                {heroes.map((hero) => (
+                                    <div
+                                        key={hero.id}
+                                        className="relative group cursor-pointer"
+                                        onClick={() => handleHeroSelect(hero)}
+                                    >
+                                        <div className="aspect-w-1 aspect-h-1 w-full overflow-hidden rounded-lg bg-gray-200">
+                                            <Image
+                                                src={getHeroImageUrl(hero.name)}
+                                                alt={hero.localized_name}
+                                                width={200}
+                                                height={200}
+                                                className="object-cover object-center group-hover:opacity-75"
+                                            />
+                                        </div>
+                                        <div className="mt-2 text-center">
+                                            <h3 className="text-sm font-medium text-gray-200">{hero.localized_name}</h3>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
+                )}
+
+                {/* Enemy Counters */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {enemyHeroes.map((hero, index) => {
+                        if (!hero) return null;
+                        return (
+                            <div key={`counter-${index}`} className="bg-[#1A1F2C] p-6 rounded-lg shadow">
+                                <div className="flex items-center space-x-4 mb-4">
+                                    <Image
+                                        src={getHeroImageUrl(hero.name)}
+                                        alt={hero.localized_name}
+                                        width={48}
+                                        height={48}
+                                        className="rounded"
+                                    />
+                                    <h2 className="text-xl font-bold text-gray-200">{hero.localized_name}</h2>
+                                </div>
+                                {counters[hero.id] && <CountersSection counters={counters[hero.id]} />}
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
-
-            {selectedIndex !== null && (
-                <HeroSelection
-                    onSelect={handleHeroSelect}
-                    onClose={() => setSelectedIndex(null)}
-                />
-            )}
         </div>
     );
-} 
+};
+
+export default HeroGrid; 
